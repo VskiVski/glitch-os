@@ -33,8 +33,8 @@ jobs:
       - name: Build image (${{ matrix.variant }})
         run: |
           case "${{ matrix.variant }}" in
-            main)   BASE=ghcr.io/ublue-os/kinoite-main:stable ;;
-            nvidia) BASE=ghcr.io/ublue-os/kinoite-nvidia:stable ;;
+            main)   BASE=ghcr.io/ublue-os/kinoite-main:latest ;;
+            nvidia) BASE=ghcr.io/ublue-os/kinoite-nvidia:latest ;;
           esac
           TAG_NAME="${{ env.IMAGE_NAME }}"
           [ "${{ matrix.variant }}" = "nvidia" ] && TAG_NAME="${TAG_NAME}-nvidia"

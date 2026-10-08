@@ -14,11 +14,11 @@ else echo "erro: podman ou docker necessário" >&2; exit 1; fi
 
 case "$VARIANT" in
     main)
-        BASE_IMAGE="ghcr.io/ublue-os/kinoite-main:stable"
+        BASE_IMAGE="ghcr.io/ublue-os/kinoite-main:latest"
         TAG="${IMAGE_NAME}:${VERSION}"
         ;;
     nvidia)
-        BASE_IMAGE="ghcr.io/ublue-os/kinoite-nvidia:stable"
+        BASE_IMAGE="ghcr.io/ublue-os/kinoite-nvidia:latest"
         TAG="${IMAGE_NAME}-nvidia:${VERSION}"
         ;;
     *)

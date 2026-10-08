@@ -1,9 +1,9 @@
 # 🩸 GLITCH OS — Fedora Atomic image (universal-blue model)
 #
 # Variantes via BASE_IMAGE:
-#   main:   ghcr.io/ublue-os/kinoite-main:stable
-#   nvidia: ghcr.io/ublue-os/kinoite-nvidia:stable
-ARG BASE_IMAGE=ghcr.io/ublue-os/kinoite-main:stable
+#   main:   ghcr.io/ublue-os/kinoite-main:latest
+#   nvidia: ghcr.io/ublue-os/kinoite-nvidia:latest
+ARG BASE_IMAGE=ghcr.io/ublue-os/kinoite-main:latest
 FROM ${BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="GLITCH OS" \

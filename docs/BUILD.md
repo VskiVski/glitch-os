@@ -18,7 +18,7 @@ Funciona em qualquer máquina com podman ou docker (Linux, Windows, macOS):
 Ou diretamente:
 
 ```bash
-podman build --build-arg BASE_IMAGE=ghcr.io/ublue-os/kinoite-main:stable -t glitch-os:latest .
+podman build --build-arg BASE_IMAGE=ghcr.io/ublue-os/kinoite-main:latest -t glitch-os:latest .
 ```
 
 ## CI
