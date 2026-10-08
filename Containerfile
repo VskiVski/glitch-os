@@ -26,4 +26,5 @@ RUN dnf install -y --setopt=install_weak_deps=False \
 # GLITCH Engine + tema + configs do sistema
 COPY config/files /
 RUN chmod 755 /usr/bin/glitch-* /etc/skel/.config/plasma-workspace/env/glitch-env.sh && \
-    systemctl enable glitch-engine.service systemd-zram-generator@zram0.service
+    if [ -e /usr/lib/systemd/system/glitch-engine.service ]; then systemctl enable glitch-engine.service; fi && \
+    if [ -e /usr/lib/systemd/system/systemd-zram-generator@zram0.service ]; then systemctl enable systemd-zram-generator@zram0.service; fi
