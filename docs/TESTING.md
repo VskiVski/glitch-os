@@ -20,6 +20,35 @@ e publica em `ghcr.io/<user>/glitch-os:latest` e `glitch-os-nvidia:latest`.
 (Primeiro push: verificar em Actions se o build passou; nomes de pacotes dnf
 inválidos aparecem aqui.)
 
+> **Nota:** as referências Docker têm de estar em minúsculas — mesmo que o
+> utilizador GitHub tenha maiúsculas (`VskiVski`), a imagem é
+> `ghcr.io/vskivski/glitch-os`. O workflow já trata disso automaticamente.
+
+## Passo 1.5 — Tornar os packages públicos (obrigatório)
+
+**Repo público ≠ package público.** Quando o primeiro push é feito com o repo
+privado, o GitHub cria os container packages como **privados**, e torná-los
+públicos não acontece automaticamente ao mudar a visibilidade do repo.
+Sem isto, a VM recebe `401/DENIED` no pull anónimo.
+
+Para cada package (`glitch-os` e `glitch-os-nvidia`):
+
+1. Abrir `https://github.com/<user>/glitch-os` → barra lateral direita → **Packages**
+2. Clicar no package → **Package settings** (abaixo, à direita)
+3. **Danger Zone** → **Change visibility** → `Public` → confirmar
+
+Verificar sem autenticação (a partir de qualquer máquina):
+
+```bash
+curl -s "https://ghcr.io/token?service=ghcr.io&scope=repository:<user>/glitch-os:pull"
+# package público → devolve {"token":"..."}
+# package privado → devolve {"errors":[{"code":"DENIED",...}]}
+```
+
+(Alternativa ao Passo 1.5: re-trigger do workflow — `workflow_dispatch` ou um
+commit vazio — *depois* do repo já ser público; packages criados por push com o
+repo público nascem públicos.)
+
 ## Passo 2 — Preparar a máquina de teste
 
 Instalar Fedora Kinoite (ou qualquer Fedora Atomic KDE):
@@ -29,7 +58,7 @@ Instalar Fedora Kinoite (ou qualquer Fedora Atomic KDE):
 ## Passo 3 — Rebase para o GLITCH OS
 
 ```bash
-# permite imagens sem assinatura (dev)
+# permite imagens sem assinatura (dev); user em minúsculas
 rpm-ostree rebase ostree-unverified-registry:ghcr.io/<user>/glitch-os:latest
 systemctl reboot
 ```
@@ -66,6 +95,28 @@ Gaming (em PC real com GPU, não VM):
 ```bash
 rpm-ostree rollback   # ou escolher o deployment anterior no menu de boot
 ```
+
+## Troubleshooting
+
+**`401`/`DENIED` no pull anónimo (rpm-ostree rebase falha):**
+o package é privado (ver Passo 1.5) ou o nome está errado. Confirmar:
+
+```bash
+# token anónimo — {"token":...} significa público e acessível
+curl -s "https://ghcr.io/token?service=ghcr.io&scope=repository:<user>/glitch-os:pull"
+
+# referência correta é sempre em minúsculas
+curl -s "https://ghcr.io/v2/<user>/glitch-os/tags/list" \
+  -H "Authorization: Bearer $(curl -s "https://ghcr.io/token?service=ghcr.io&scope=repository:<user>/glitch-os:pull" | jq -r .token)"
+```
+
+Se `Packages` na página do repo aparecer vazio mas o Actions estiver verde:
+os packages existem mas estão privados — só visíveis em
+`https://github.com/<user>?tab=packages` quando autenticado.
+
+**Workflow falha em segundos no build:** tag da base inexistente. As bases são
+`ghcr.io/ublue-os/kinoite-main:latest` e `kinoite-nvidia:latest` (não existe
+tag `stable`).
 
 ## Reportar problemas
 
