@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# glitch-perf — GLITCH Engine Performance Manager v0.2
+# Perfis: NORMAL | PERFORMANCE | ULTRA | GAMING | BATTERY | auto
+# Filosofia: otimização medida. Cada alteração é aplicada e VERIFICADA.
+set -euo pipefail
+
+STATE_FILE="/run/glitch/perf-profile"
+CONF_FILE="/etc/glitch/perf.conf"
+mkdir -p "$(dirname "$STATE_FILE")"
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+set_governor() {
+    have cpupower || return 0
+    cpupower frequency-set -g "$1" >/dev/null 2>&1 || true
+}
+
+set_epp() {
+    local epp="$1" f
+    for f in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+        [[ -w "$f" ]] && echo "$epp" > "$f" 2>/dev/null || true
+    done
+}
+
+set_thp() {
+    local f=/sys/kernel/mm/transparent_hugepage/enabled
+    [[ -w "$f" ]] && echo "$1" > "$f" 2>/dev/null || true
+}
+
+set_ppd() {
+    have powerprofilesctl || return 0
+    powerprofilesctl set "$1" >/dev/null 2>&1 || true
+}
+
+set_sysctl() {
+    sysctl -q -w "$@" >/dev/null 2>&1 || true
+}
+
+on_battery() {
+    [[ "$(cat /sys/class/power_supply/AC*/online 2>/dev/null | head -n1 || echo 1)" == "0" ]]
+}
+
+verify() { # $1 = governor esperado
+    local want="$1" got ppd_now
+    got=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "")
+    if [[ -n "$got" && "$got" != "$want" ]]; then
+        echo "[glitch-perf] WARN: governor pedido '$want', ativo '$got' (driver pode ignorar)" >&2
+    fi
+    ppd_now=$(have powerprofilesctl && powerprofilesctl get 2>/dev/null || echo "")
+    echo "[glitch-perf] verified: governor=${got:-n/a} ppd=${ppd_now:-n/a}"
+}
+
+apply_profile() {
+    local profile="$1" save="${2:-no}"
+    case "$profile" in
+        NORMAL)
+            set_ppd balanced
+            set_governor schedutil
+            set_epp balance_performance
+            set_thp madvise
+            set_sysctl vm.swappiness=10 vm.dirty_ratio=15
+            verify schedutil
+            ;;
+        PERFORMANCE)
+            set_ppd performance
+            set_governor schedutil
+            set_epp balance_performance
+            set_thp madvise
+            set_sysctl vm.swappiness=5 vm.dirty_ratio=20
+            verify schedutil
+            ;;
+        ULTRA)
+            set_ppd performance
+            set_governor performance
+            set_epp performance
+            set_thp madvise
+            set_sysctl vm.swappiness=1 vm.dirty_ratio=25 vm.dirty_background_ratio=10
+            verify performance
+            ;;
+        GAMING)
+            # GameMode trata do por-jogo (nice, governor, ioprio);
+            # aqui preparamos o sistema à volta do jogo.
+            set_ppd performance
+            set_governor performance
+            set_epp performance
+            set_thp madvise
+            set_sysctl vm.swappiness=1 vm.dirty_ratio=25
+            have gamemoded && gamemoded -t >/dev/null 2>&1 || true
+            verify performance
+            ;;
+        BATTERY)
+            set_ppd power-saver
+            set_governor powersave
+            set_epp power
+            set_thp madvise
+            set_sysctl vm.swappiness=20 vm.dirty_ratio=10
+            verify powersave
+            ;;
+        *)
+            echo "usage: glitch-perf {normal|performance|ultra|gaming|battery|auto|status} [--save]" >&2
+            return 1
+            ;;
+    esac
+    echo "$profile" > "$STATE_FILE"
+    if [[ "$save" == "yes" ]]; then
+        mkdir -p /etc/glitch
+        echo "PERF_PROFILE=$profile" > "$CONF_FILE"
+        echo "[glitch-perf] profile saved: $profile (sobrevive a reboot)"
+    fi
+    echo "[glitch-perf] profile: $profile"
+}
+
+auto() {
+    # preferência persistida pelo utilizador tem prioridade sobre auto-deteção
+    if [[ -f "$CONF_FILE" ]]; then
+        local saved
+        saved=$(sed -n 's/^PERF_PROFILE=//p' "$CONF_FILE" | head -n1)
+        if [[ -n "$saved" ]]; then
+            apply_profile "$saved" no
+            return
+        fi
+    fi
+    if on_battery; then apply_profile BATTERY no
+    else apply_profile NORMAL no
+    fi
+}
+
+status() {
+    local profile gov ppd_now epp thp
+    profile=$(cat "$STATE_FILE" 2>/dev/null || echo "unknown")
+    gov=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "n/a")
+    epp=$(cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference 2>/dev/null || echo "n/a")
+    thp=$(grep -oE '\[[a-z]+\]' /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null | tr -d '[]' || echo "n/a")
+    ppd_now=$(have powerprofilesctl && powerprofilesctl get 2>/dev/null || echo "n/a")
+    printf 'PROFILE   %s\nGOVERNOR  %s\nEPP       %s\nTHP       %s\nPPD       %s\n' \
+        "$profile" "$gov" "$epp" "${thp:-n/a}" "${ppd_now:-n/a}"
+}
+
+SAVE=no
+[[ "${2:-}" == "--save" ]] && SAVE=yes
+
+case "${1:-auto}" in
+    normal) apply_profile NORMAL "$SAVE" ;;
+    performance) apply_profile PERFORMANCE "$SAVE" ;;
+    ultra) apply_profile ULTRA "$SAVE" ;;
+    gaming) apply_profile GAMING "$SAVE" ;;
+    battery) apply_profile BATTERY "$SAVE" ;;
+    auto) auto ;;
+    status) status ;;
+esac

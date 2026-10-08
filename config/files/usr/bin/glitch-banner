@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# glitch-banner — boot banner "SYSTEM ONLINE"
+set -uo pipefail
+
+RED='\033[31m'; DIM='\033[2m'; RST='\033[0m'
+
+status() { # label, command
+    local label="$1"; shift
+    if "$@" >/dev/null 2>&1; then
+        printf "  %s%-10s%s %sOK%s\n" "$DIM" "$label" "$RST" "$RED" "$RST"
+    else
+        printf "  %s%-10s%s ..\n" "$DIM" "$label" "$RST"
+    fi
+}
+
+printf "\n%s" "$RED"
+printf '  ████████████████████\n'
+printf '       GLITCH OS\n'
+printf '\n'
+printf '%s' "$RST"
+
+status "GPU" bash -c 'lsmod | grep -qE "^(nvidia|amdgpu|i915)"'
+status "CPU" bash -c 'test -r /proc/cpuinfo'
+status "NETWORK" bash -c 'ip route show default | grep -q default'
+status "SECURITY" bash -c 'test -x /usr/bin/sudo'
+
+printf "\n%s  SYSTEM ONLINE%s\n\n" "$RED" "$RST"

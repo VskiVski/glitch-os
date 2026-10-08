@@ -1,0 +1,24 @@
+# GLITCH OS — ferramentas base (dnf, Fedora)
+# kernel/mesa/pipewire/networkmanager já vêm da base kinoite
+kernel-tools
+lm_sensors
+switcheroo-control
+smartmontools
+hdparm
+ethtool
+dmidecode
+lshw
+pciutils
+usbutils
+inxi
+btop
+htop
+jq
+bc
+git
+vim
+unzip
+p7zip
+p7zip-plugins
+zstd
+distrobox

@@ -1,0 +1,8 @@
+# GLITCH OS — glitch engine deps + installer
+lm_sensors
+switcheroo-control
+hdparm
+ethtool
+calamares
+# Heroic (AUR: heroic-games-launcher-bin) — instalado pós-setup via helper, não na ISO
+# Ver docs/BUILD.md

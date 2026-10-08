@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# glitch-hw — GLITCH Engine Hardware Manager
+# Deteta o hardware e escreve /etc/glitch/hardware.conf. Com --apply, aplica a configuração.
+set -euo pipefail
+
+CONF_DIR="/etc/glitch"
+CONF="$CONF_DIR/hardware.conf"
+RUN_STATE="/run/glitch"
+
+detect_gpu() {
+    local vendor="unknown" hybrid="no" gpus=()
+    while read -r line; do
+        case "$line" in
+            *NVIDIA*) gpus+=("nvidia");;
+            *AMD*|*ATI*|*Radeon*) gpus+=("amd");;
+            *Intel*) gpus+=("intel");;
+        esac
+    done < <(lspci -nn | grep -Ei 'vga|3d|display' || true)
+
+    ((${#gpus[@]} > 1)) && hybrid="yes"
+    if [[ " ${gpus[*]} " == *" nvidia " ]]; then vendor="nvidia"
+    elif [[ " ${gpus[*]} " == *" amd " ]]; then vendor="amd"
+    elif [[ " ${gpus[*]} " == *" intel " ]]; then vendor="intel"
+    fi
+    # Em híbrido, a dGPU é a de render; vendor reflete quem configura o driver
+    echo "$vendor"
+    echo "$hybrid"
+}
+
+detect_cpu() {
+    local vendor
+    vendor=$(grep -m1 'vendor_id' /proc/cpuinfo | awk '{print $3}')
+    case "$vendor" in
+        AuthenticAMD) echo "amd";;
+        GenuineIntel) echo "intel";;
+        *) echo "unknown";;
+    esac
+}
+
+detect_vrr() {
+    local vrr="no"
+    for f in /sys/class/drm/card*-*/modeset_* /sys/class/drm/card*-*; do
+        [[ -e "$f/vrr_capable" ]] && grep -q 1 "$f/vrr_capable" && vrr="yes"
+    done
+    echo "$vrr"
+}
+
+detect() {
+    local gpu_lines gpu_vendor hybrid cpu_vendor vrr
+    gpu_lines=$(detect_gpu)
+    gpu_vendor=$(echo "$gpu_lines" | head -n1)
+    hybrid=$(echo "$gpu_lines" | tail -n1)
+    cpu_vendor=$(detect_cpu)
+    vrr=$(detect_vrr)
+
+    mkdir -p "$CONF_DIR"
+    cat > "$CONF" <<EOF
+# Gerado por glitch-hw em $(date -Is) — não editar manualmente
+GPU_VENDOR=$gpu_vendor
+GPU_HYBRID=$hybrid
+CPU_VENDOR=$cpu_vendor
+VRR=$vrr
+KERNEL=$(uname -r)
+EOF
+    echo "[glitch-hw] hardware written to $CONF"
+    cat "$CONF"
+}
+
+apply() {
+    [[ -f "$CONF" ]] || detect
+    source "$CONF"
+    mkdir -p "$RUN_STATE"
+
+    case "$GPU_VENDOR" in
+        nvidia)
+            # modeset já vem de /etc/modprobe.d/glitch-nvidia.conf
+            modprobe nvidia_drm modeset=1 2>/dev/null || true
+            systemctl enable --now nvidia-persistenced 2>/dev/null || true
+            ;;
+        amd|intel)
+            modprobe amdgpu 2>/dev/null || true
+            modprobe i915 2>/dev/null || true
+            ;;
+    esac
+
+    [[ "$CPU_VENDOR" == "amd" ]] && modprobe amd_pstate 2>/dev/null || true
+    [[ "$CPU_VENDOR" == "intel" ]] && modprobe intel_pstate 2>/dev/null || true
+
+    # Híbrido: garantir PRIME/switcheroo disponíveis
+    [[ "$GPU_HYBRID" == "yes" ]] && systemctl enable --now switcheroo-control 2>/dev/null || true
+
+    echo "GPU_VENDOR=$GPU_VENDOR" > "$RUN_STATE/hw-state"
+    echo "GPU_HYBRID=$GPU_HYBRID" >> "$RUN_STATE/hw-state"
+    echo "[glitch-hw] configuration applied ($GPU_VENDOR, hybrid=$GPU_HYBRID)"
+}
+
+case "${1:-detect}" in
+    --apply|apply) apply ;;
+    *) detect ;;
+esac

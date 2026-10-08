@@ -1,0 +1,3 @@
+# GLITCH OS — engine deps
+# (glitch-perf: kernel-tools/power-profiles-daemon; glitch-hw: pciutils/lshw;
+#  glitch-doctor: lm_sensors/vulkan-tools; todos já listados)

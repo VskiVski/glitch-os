@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# glitch-doctor — GLITCH Engine System Doctor v0.2
+# Diagnóstico honesto: reporta OK/WARN/FAIL com evidência, sem promessas mágicas.
+# Uso: glitch-doctor [--json]
+set -uo pipefail
+
+OK=0; WARN=0; FAIL=0
+JSON_MODE=0
+JSON_ITEMS=()
+[[ "${1:-}" == "--json" ]] && JSON_MODE=1
+
+check() { # name, status, detail
+    local name="$1" status="$2" detail="${3:-}"
+    detail=${detail//\"/}
+    JSON_ITEMS+=("{\"name\":\"$name\",\"status\":\"$status\",\"detail\":\"$detail\"}")
+    case "$status" in
+        OK)   ((OK++));;
+        WARN) ((WARN++));;
+        *)    ((FAIL++));;
+    esac
+    ((JSON_MODE)) && return 0
+    case "$status" in
+        OK)   printf '  %-14s [\033[32m OK \033[0m] %s\n' "$name" "$detail";;
+        WARN) printf '  %-14s [\033[33mWARN\033[0m] %s\n' "$name" "$detail";;
+        *)    printf '  %-14s [\033[31mFAIL\033[0m] %s\n' "$name" "$detail";;
+    esac
+}
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# ── Kernel / sistema ────────────────────────────────────────────────
+kver=$(uname -r)
+kmajor=${kver%%.*}
+if ((kmajor >= 6)); then
+    check "KERNEL" OK "$kver"
+else
+    check "KERNEL" WARN "$kver — recomendado >= 6.x"
+fi
+
+if have rpm-ostree; then
+    deployments=$(rpm-ostree status 2>/dev/null | grep -c '^\s*[●*] ' || true)
+    booted=$(rpm-ostree status 2>/dev/null | sed -n 's/^\s*\* \(.*\)/\1/p' | head -n1)
+    if ((deployments >= 2)); then
+        check "ATOMIC" OK "rollback disponível ($deployments deployments)"
+    else
+        check "ATOMIC" WARN "apenas 1 deployment — sem rollback"
+    fi
+else
+    check "ATOMIC" WARN "rpm-ostree ausente (base não-atomic?)"
+fi
+
+# ── Segurança ───────────────────────────────────────────────────────
+sb_path="/sys/kernel/security/efi/secureboot"
+if [[ -r "$sb_path" ]]; then
+    sb=$(od -An -t u1 "$sb_path" 2>/dev/null | tr -d ' ')
+    [[ "$sb" == "1" ]] && check "SECUREBOOT" OK "ativo" || check "SECUREBOOT" WARN "inativo"
+elif have mokutil; then
+    mokutil --sb-state 2>/dev/null | grep -qi enabled \
+        && check "SECUREBOOT" OK "ativo" || check "SECUREBOOT" WARN "inativo/indeterminado"
+else
+    check "SECUREBOOT" WARN "não verificável (sem efivarfs/mokutil)"
+fi
+
+if [[ -d /sys/class/tpm/tpm0 ]]; then
+    check "TPM" OK "tpm0 presente"
+else
+    check "TPM" WARN "TPM não detetado"
+fi
+
+# ── CPU / performance ───────────────────────────────────────────────
+gov=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "n/a")
+check "GOVERNOR" OK "$gov (perfil: $(cat /run/glitch/perf-profile 2>/dev/null || echo 'n/a'))"
+
+# ── GPU ─────────────────────────────────────────────────────────────
+if have nvidia-smi && nvidia-smi >/dev/null 2>&1; then
+    check "GPU" OK "nvidia $(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -n1)"
+elif [[ -d /sys/module/amdgpu ]]; then
+    check "GPU" OK "amdgpu carregado"
+elif [[ -d /sys/module/i915 || -d /sys/module/xe ]]; then
+    check "GPU" OK "intel (i915/xe) carregado"
+else
+    check "GPU" FAIL "nenhum driver GPU detetado"
+fi
+
+if have vulkaninfo; then
+    vkdev=$(vulkaninfo --summary 2>/dev/null | grep -m1 deviceName | awk -F= '{print $2}' | xargs)
+    [[ -n "$vkdev" ]] && check "VULKAN" OK "$vkdev" || check "VULKAN" FAIL "sem dispositivos Vulkan"
+else
+    check "VULKAN" WARN "vulkan-tools não instalado"
+fi
+
+# ── Gaming stack ────────────────────────────────────────────────────
+if have steam || flatpak list 2>/dev/null | grep -qi steam; then
+    check "STEAM" OK "instalado"
+else
+    check "STEAM" WARN "não instalado"
+fi
+
+proton_dirs=$(find "$HOME/.steam/steam/steamapps/common" "$HOME/.local/share/Steam/steamapps/common" -maxdepth 1 -iname 'Proton*' -type d 2>/dev/null | head -n5 | wc -l)
+if ((proton_dirs > 0)); then
+    check "PROTON" OK "$proton_dirs versões Proton"
+else
+    check "PROTON" WARN "nenhuma versão Proton encontrada (Steam instala on-demand)"
+fi
+
+have wine && check "WINE" OK "$(wine --version 2>/dev/null)" || check "WINE" WARN "não instalado"
+have gamemoded && check "GAMEMODE" OK "instalado" || check "GAMEMODE" WARN "não instalado"
+have gamescope && check "GAMESCOPE" OK "instalado" || check "GAMESCOPE" WARN "não instalado (opcional)"
+
+# ── Memória / armazenamento ─────────────────────────────────────────
+if swapon --show=NAME --noheadings 2>/dev/null | grep -q zram; then
+    check "ZRAM" OK "$(swapon --show=NAME,SIZE --noheadings | grep zram | head -n1 | xargs)"
+else
+    check "ZRAM" WARN "zram swap inativo"
+fi
+
+for mnt in / /var; do
+    use=$(df --output=pcent "$mnt" 2>/dev/null | tail -n1 | tr -d ' %')
+    if [[ -n "$use" ]]; then
+        if ((use >= 95)); then check "DISK$mnt" FAIL "${use}% usado"
+        elif ((use >= 85)); then check "DISK$mnt" WARN "${use}% usado"
+        else check "DISK$mnt" OK "${use}% usado"; fi
+    fi
+done
+
+if have smartctl; then
+    dev=$(lsblk -dno NAME,TYPE 2>/dev/null | awk '$2=="disk"{print "/dev/"$1; exit}')
+    if [[ -n "$dev" ]]; then
+        health=$(smartctl -H "$dev" 2>/dev/null | grep -m1 'result\|Status' | awk -F: '{print $2}' | xargs)
+        case "$health" in
+            *PASSED*|*OK*) check "STORAGE" OK "$dev $health";;
+            "") check "STORAGE" WARN "sem leitura SMART em $dev";;
+            *) check "STORAGE" FAIL "$dev $health";;
+        esac
+    fi
+else
+    check "STORAGE" WARN "smartmontools não instalado"
+fi
+
+# ── Rede / áudio / bluetooth ────────────────────────────────────────
+if have nmcli && nmcli networking connectivity check 2>/dev/null | grep -q full; then
+    check "NETWORK" OK "conectividade total"
+else
+    check "NETWORK" WARN "sem conectividade verificada"
+fi
+
+if pgrep -x pipewire >/dev/null 2>&1 || systemctl is-active --quiet pipewire 2>/dev/null; then
+    check "AUDIO" OK "pipewire ativo"
+else
+    check "AUDIO" WARN "pipewire não ativo"
+fi
+
+if systemctl is-active --quiet bluetooth 2>/dev/null; then
+    blocked=$(have rfkill && rfkill list bluetooth 2>/dev/null | grep -c 'Soft blocked: yes' || echo 0)
+    ((blocked == 0)) && check "BLUETOOTH" OK "serviço ativo" || check "BLUETOOTH" WARN "bloqueado por rfkill"
+elif have rfkill && rfkill list bluetooth >/dev/null 2>&1; then
+    check "BLUETOOTH" WARN "serviço inativo"
+else
+    check "BLUETOOTH" WARN "sem adaptador detetado"
+fi
+
+# ── Serviços essenciais ─────────────────────────────────────────────
+for svc in sddm NetworkManager; do
+    if systemctl is-active --quiet "$svc" 2>/dev/null || systemctl is-enabled --quiet "$svc" 2>/dev/null; then
+        check "SVC:$svc" OK "ativo"
+    else
+        check "SVC:$svc" WARN "não ativo"
+    fi
+done
+
+# ── Térmico ─────────────────────────────────────────────────────────
+if have sensors; then
+    temp=$(sensors 2>/dev/null | grep -m1 -E 'Tdie|Package id 0|Tctl|Tccd1' | grep -oE '\+[0-9]+\.[0-9]+°C' || echo "")
+    [[ -n "$temp" ]] && check "THERMAL" OK "$temp" || check "THERMAL" WARN "sem leitura"
+fi
+
+# ── Relatório ───────────────────────────────────────────────────────
+if ((JSON_MODE)); then
+    printf '{"results":[%s],"ok":%d,"warn":%d,"fail":%d}\n' \
+        "$(IFS=,; echo "${JSON_ITEMS[*]-}")" "$OK" "$WARN" "$FAIL"
+    exit 0
+fi
+
+echo "------------------------------------"
+echo "  OK: $OK   WARN: $WARN   FAIL: $FAIL"
+[[ $FAIL -eq 0 ]] && echo "  SYSTEM ONLINE" || echo "  SYSTEM DEGRADED"
+exit $((FAIL > 0))

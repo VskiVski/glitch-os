@@ -1,0 +1,13 @@
+[Unit]
+Description=GLITCH Engine — hardware detection and adaptive configuration
+After=systemd-modules-load.service
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/glitch-hw --apply
+ExecStart=/usr/bin/glitch-perf auto
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

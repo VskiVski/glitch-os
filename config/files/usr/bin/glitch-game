@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# glitch-game — Game Optimizer wrapper
+# Uso: glitch-game [--gamescope] [--hud] <jogo ou comando>
+# GAMING profile + GameMode; restaura o perfil anterior à saída.
+set -euo pipefail
+
+USE_GAMESCOPE=0
+USE_HUD=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --gamescope) USE_GAMESCOPE=1; shift ;;
+        --hud) USE_HUD=1; shift ;;
+        *) break ;;
+    esac
+done
+
+[[ $# -gt 0 ]] || { echo "usage: glitch-game [--gamescope] [--hud] <command...>" >&2; exit 1; }
+
+PREV_PROFILE=$(cat /run/glitch/perf-profile 2>/dev/null || echo "NORMAL")
+glitch-perf gaming
+
+# Híbrido: jogos correm na dGPU quando disponível
+HW_STATE="/run/glitch/hw-state"
+if [[ -f "$HW_STATE" ]] && grep -q "GPU_HYBRID=yes" "$HW_STATE"; then
+    if command -v prime-run >/dev/null 2>&1; then
+        PRIME="prime-run"
+    elif command -v switcherooctl >/dev/null 2>&1; then
+        PRIME="switcherooctl launch --"
+    else
+        PRIME=""
+    fi
+else
+    PRIME=""
+fi
+
+CMD=("$@")
+command -v gamemoderun >/dev/null 2>&1 && GAMEMODE="gamemoderun" || GAMEMODE=""
+[[ $USE_HUD -eq 1 ]] && export MANGOHUD=1
+
+run() {
+    if [[ $USE_GAMESCOPE -eq 1 ]] && command -v gamescope >/dev/null 2>&1; then
+        # Gamescope é opcional por definição do conceito — só com flag explícita
+        gamescope -f -- $GAMEMODE $PRIME "${CMD[@]}"
+    else
+        $GAMEMODE $PRIME "${CMD[@]}"
+    fi
+}
+
+restore() { glitch-perf "$(echo "$PREV_PROFILE" | tr '[:upper:]' '[:lower:]')" 2>/dev/null || true; }
+trap restore EXIT
+run

@@ -1,0 +1,15 @@
+# GLITCH OS — gaming (alguns exigem RPM Fusion, ativado no Containerfile)
+steam
+gamemode
+gamescope
+mangohud
+vkBasalt
+lutris
+protontricks
+winetricks
+wine
+vulkan-tools
+dxvk
+vkd3d
+# NVIDIA: a variante nvidia da base (kinoite-nvidia + akmods) traz os drivers
+# AMD/Intel: mesa já vem da base

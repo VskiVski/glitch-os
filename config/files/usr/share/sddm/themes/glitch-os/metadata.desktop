@@ -1,0 +1,11 @@
+[SddmGreeterTheme]
+Name=Glitch OS
+Description=GLITCH DARK login — near-black, deep red, subtle glitch.
+Author=GLITCH OS
+Type=sddm-theme
+Version=0.1
+Website=https://example.local/glitch-os
+Screenshot=preview.png
+MainScript=Main.qml
+ConfigFile=theme.conf
+TranslationsDirectory=translations
