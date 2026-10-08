@@ -10,16 +10,20 @@ LABEL org.opencontainers.image.title="GLITCH OS" \
       org.opencontainers.image.description="ULTRA PERFORMANCE - GAMING - TERROR" \
       org.opencontainers.image.vendor="GLITCH OS"
 
-# RPM Fusion + Pacotes GLITCH + GLITCH Engine config
+# Pacotes GLITCH (listas em packages/, dnf names)
+COPY packages /tmp/glitch-packages
+
+# RPM Fusion + Pacotes GLITCH num so RUN (menos layers)
 RUN dnf install -y \
         https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
         https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm && \
     dnf clean all && \
     dnf install -y --setopt=install_weak_deps=False \
-        $(find /tmp/glitch-packages -type f -name "*.list" -exec cat {} \; 2>/dev/null | grep -vE '^\s*(#|$)' | sort -u) && \
+        $(cat /tmp/glitch-packages/*.list | grep -vE '^\s*(#|$)' | sort -u) && \
+    rm -rf /tmp/glitch-packages && \
     dnf clean all
 
-COPY packages /tmp/glitch-packages
+# GLITCH Engine + tema + configs do sistema
 COPY config/files /
 
 RUN chmod 755 /usr/bin/glitch-* /etc/skel/.config/plasma-workspace/env/glitch-env.sh && \
