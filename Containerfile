@@ -16,13 +16,10 @@ RUN dnf install -y \
         https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm && \
     dnf clean all
 
-# Pacotes GLITCH: instalar apenas os que ainda não existam no base image
+# Pacotes GLITCH: instalar todos os pacotes listados
 COPY packages /tmp/glitch-packages
-RUN PKGS="$(grep -vE '^\s*(#|$)' /tmp/glitch-packages/*.list 2>/dev/null | sort -u | tr '\n' ' ')" && \
-    if [ -n "$PKGS" ]; then \
-      MISSING="$(for p in $PKGS; do rpm -q "$p" >/dev/null 2>&1 || echo "$p"; done)"; \
-      if [ -n "$MISSING" ]; then dnf install -y --setopt=install_weak_deps=False $MISSING; fi; \
-    fi && \
+RUN dnf install -y --setopt=install_weak_deps=False \
+        $(cat /tmp/glitch-packages/*.list | grep -vE '^\s*(#|$)' | sort -u) && \
     rm -rf /tmp/glitch-packages && \
     dnf clean all
 
