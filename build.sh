@@ -31,6 +31,7 @@ echo "    base:  $BASE_IMAGE"
 echo "    tag:   $TAG"
 
 $BUILDER build \
+    -f Containerfile \
     --build-arg BASE_IMAGE="$BASE_IMAGE" \
     --label "org.opencontainers.image.version=$VERSION" \
     -t "$TAG" \
