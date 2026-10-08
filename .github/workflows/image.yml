@@ -39,12 +39,13 @@ jobs:
           TAG_NAME="${{ env.IMAGE_NAME }}"
           [ "${{ matrix.variant }}" = "nvidia" ] && TAG_NAME="${TAG_NAME}-nvidia"
           VERSION="${GITHUB_REF_NAME//\//-}"
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           docker build \
             --build-arg BASE_IMAGE="$BASE" \
-            -t "ghcr.io/${{ github.repository_owner }}/${TAG_NAME}:${VERSION}" \
-            -t "ghcr.io/${{ github.repository_owner }}/${TAG_NAME}:latest" \
+            -t "ghcr.io/${OWNER}/${TAG_NAME}:${VERSION}" \
+            -t "ghcr.io/${OWNER}/${TAG_NAME}:latest" \
             .
-          echo "IMAGE_FULL=ghcr.io/${{ github.repository_owner }}/${TAG_NAME}" >> "$GITHUB_ENV"
+          echo "IMAGE_FULL=ghcr.io/${OWNER}/${TAG_NAME}" >> "$GITHUB_ENV"
 
       - name: Login to GHCR
         if: github.event_name != 'pull_request'
