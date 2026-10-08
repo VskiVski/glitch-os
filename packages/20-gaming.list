@@ -9,7 +9,7 @@ protontricks
 winetricks
 wine
 vulkan-tools
-dxvk
-vkd3d
+# DXVK e VKD3D-Proton ja vem empacotados dentro do Proton (via Steam);
+# nao existem como pacotes dnf nativos no Fedora — nao listar aqui.
 # NVIDIA: a variante nvidia da base (kinoite-nvidia + akmods) traz os drivers
-# AMD/Intel: mesa já vem da base
+# AMD/Intel: mesa ja vem da base
