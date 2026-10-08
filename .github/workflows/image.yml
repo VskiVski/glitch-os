@@ -30,23 +30,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build image (${{ matrix.variant }})
-        run: |
-          case "${{ matrix.variant }}" in
-            main)   BASE=ghcr.io/ublue-os/kinoite-main:latest ;;
-            nvidia) BASE=ghcr.io/ublue-os/kinoite-nvidia:latest ;;
-          esac
-          TAG_NAME="${{ env.IMAGE_NAME }}"
-          [ "${{ matrix.variant }}" = "nvidia" ] && TAG_NAME="${TAG_NAME}-nvidia"
-          VERSION="${GITHUB_REF_NAME//\//-}"
-          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          docker build \
-            -f Containerfile \
-            --build-arg BASE_IMAGE="$BASE" \
-            -t "ghcr.io/${OWNER}/${TAG_NAME}:${VERSION}" \
-            -t "ghcr.io/${OWNER}/${TAG_NAME}:latest" \
-            .
-          echo "IMAGE_FULL=ghcr.io/${OWNER}/${TAG_NAME}" >> "$GITHUB_ENV"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
 
       - name: Login to GHCR
         if: github.event_name != 'pull_request'
@@ -56,6 +43,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push
-        if: github.event_name != 'pull_request'
-        run: docker push --all-tags "$IMAGE_FULL"
+      - name: Build and push image (${{ matrix.variant }})
+        run: |
+          case "${{ matrix.variant }}" in
+            main)   BASE=ghcr.io/ublue-os/kinoite-main:latest ;;
+            nvidia) BASE=ghcr.io/ublue-os/kinoite-nvidia:latest ;;
+          esac
+          TAG_NAME="${{ env.IMAGE_NAME }}"
+          [ "${{ matrix.variant }}" = "nvidia" ] && TAG_NAME="${TAG_NAME}-nvidia"
+          VERSION="${GITHUB_REF_NAME//\//-}"
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          PUSH_FLAG=""
+          [ "${{ github.event_name }}" != "pull_request" ] && PUSH_FLAG="--push"
+          # buildx docker-container + --push: layers vao direto para o registry,
+          # sem registo no overlay2 do daemon (limite ~127 layers das bases uBlue)
+          docker buildx build \
+            -f Containerfile \
+            --build-arg BASE_IMAGE="$BASE" \
+            -t "ghcr.io/${OWNER}/${TAG_NAME}:${VERSION}" \
+            -t "ghcr.io/${OWNER}/${TAG_NAME}:latest" \
+            $PUSH_FLAG \
+            .
