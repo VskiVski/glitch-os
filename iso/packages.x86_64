@@ -4,7 +4,6 @@
 
 # --- Desktop KDE Plasma (Wayland) ---
 plasma-desktop
-plasma-wayland-session
 sddm
 dolphin
 konsole
@@ -17,7 +16,7 @@ power-profiles-daemon
 upower
 xdg-desktop-portal-kde
 xdg-user-dirs
-kvantum-qt6
+kvantum
 breeze-icons
 noto-fonts
 noto-fonts-emoji

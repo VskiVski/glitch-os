@@ -17,15 +17,21 @@ done
 [[ -n "$RELENG" ]] || { echo "erro: archiso nao instalado (pacman -S archiso)" >&2; exit 1; }
 
 echo "==> [1/7] multilib (steam, lib32-*)"
-if grep -q '^#\[multilib\]' /etc/pacman.conf; then
-    sed -i '/^#\[multilib\]/,+1 s/^#//' /etc/pacman.conf
-fi
+enable_multilib() { # $1 = pacman.conf
+    [[ -f "$1" ]] || return 0
+    if grep -q '^#\[multilib\]' "$1"; then
+        sed -i '/^#\[multilib\]/,+1 s/^#//' "$1"
+    fi
+}
+enable_multilib /etc/pacman.conf
 pacman -Syu --noconfirm
 
 echo "==> [2/7] Copiar perfil releng"
 rm -rf "$WORK"
 mkdir -p "$WORK" "$OUT"
 cp -a "$RELENG" "$WORK/profile"
+# o pacstrap usa o pacman.conf do perfil, nao o do host
+enable_multilib "$WORK/profile/pacman.conf"
 
 echo "==> [3/7] Pacotes GLITCH"
 cat "$ROOT/iso/packages.x86_64" >> "$WORK/profile/packages.x86_64"
