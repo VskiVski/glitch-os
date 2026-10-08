@@ -1,5 +1,36 @@
 # TESTING — como testar a primeira versão do GLITCH OS
 
+Existem **duas rotas de teste**:
+
+- **Rota A — ISO live (Arch)**: descarregas a ISO do artifact do GitHub Actions
+  e arrancas a VM diretamente pela ISO. Sessão live (não instala no disco),
+  ideal para validar tema, SDDM, Plasma e GLITCH Engine rapidamente.
+- **Rota B — atómica (Fedora, a arquitetura oficial v1.0)**: o CI publica a
+  imagem OCI no GHCR; instalas Fedora Kinoite na VM e fazes `rpm-ostree rebase`.
+  Mantém updates transacionais e rollback.
+
+## Rota A — ISO live (boot direto na VM)
+
+1. O workflow `iso.yml` corre no push que tocar em `iso/**` ou `config/files/**`
+   (ou manualmente em Actions → *Build GLITCH OS ISO* → Run workflow).
+2. Quando o run ficar verde: página do run → **Artifacts** →
+   `glitch-os-live-iso` → descarregar o zip → extrair o `.iso`.
+3. Na VM (VirtualBox/VMware/Hyper-V): criar VM (2+ CPU, 8 GB RAM, 40 GB,
+   EFI ativado), montar a ISO e arrancar.
+4. Entra automaticamente em SDDM (tema `glitch-os`) com autologin do
+   utilizador `glitch` → sessão Plasma Wayland.
+   - Consola como root: também disponível (tty1, autologin).
+   - `sudo` sem password para o utilizador `glitch`.
+5. Checklist de teste: a mesma da Rota B (abaixo), exceto as partes
+   rpm-ostree/atomic — na ISO live não há rollback (é live, não instala).
+
+Limitações conhecidas da ISO v0.1:
+- Sem driver NVIDIA (VM não tem GPU; será adicionado quando houver teste em PC real)
+- `glitch-doctor` mostra WARN/FAIL em checks específicos de Fedora Atomic (rpm-ostree)
+- Sessão live: nada persiste após reboot
+
+## Rota B — imagem atómica (Fedora Atomic / GHCR)
+
 A imagem é OCI (Fedora Atomic). Não precisas de a compilar nesta máquina —
 o GitHub Actions compila-a. Precisas de:
 

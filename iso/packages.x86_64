@@ -1,0 +1,63 @@
+# GLITCH OS — pacotes adicionados ao perfil releng do archiso (nomes pacman)
+# Versao live/ISO v0.1: sem nvidia-dkms (VM nao tem GPU; compilacao pesada),
+# sem linux-zen (entradas de boot do releng usam o kernel 'linux').
+
+# --- Desktop KDE Plasma (Wayland) ---
+plasma-desktop
+plasma-wayland-session
+sddm
+dolphin
+konsole
+kate
+gwenview
+spectacle
+ark
+ksystemstats
+power-profiles-daemon
+upower
+xdg-desktop-portal-kde
+xdg-user-dirs
+kvantum-qt6
+breeze-icons
+noto-fonts
+noto-fonts-emoji
+ttf-jetbrains-mono
+ttf-dejavu
+terminus-font
+
+# --- Audio ---
+pipewire
+pipewire-pulse
+pipewire-alsa
+wireplumber
+
+# --- Rede ---
+networkmanager
+
+# --- Gaming ---
+steam
+gamemode
+lib32-gamemode
+mangohud
+lib32-mangohud
+gamescope
+mesa
+lib32-mesa
+mesa-utils
+vulkan-icd-loader
+lib32-vulkan-icd-loader
+vulkan-tools
+wine-staging
+winetricks
+protontricks
+
+# --- GLITCH Engine deps ---
+cpupower
+zram-generator
+lm_sensors
+smartmontools
+switcheroo-control
+btop
+htop
+inxi
+jq

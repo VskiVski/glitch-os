@@ -1,0 +1,13 @@
+[Unit]
+Description=GLITCH OS — criar utilizador live 'glitch' (ambiente live, /home em tmpfs)
+Before=sddm.service
+After=systemd-tmpfiles-setup.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/useradd -m -G wheel,audio,video,storage,power -s /bin/bash glitch
+ExecStart=/usr/bin/passwd -d glitch
+
+[Install]
+WantedBy=multi-user.target
